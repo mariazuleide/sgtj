@@ -1136,19 +1136,26 @@ body.modo-apresentacao .sorteio-fullscreen-topbar .no-apres { display: none !imp
       if (snap.exists()) {
         const remoto = snap.data().estado;
         if (remoto) {
-          // Só atualizar se for mais recente que o estado local
-          const tsRemoto = snap.data().ts?.toMillis?.() || 0;
-          const tsLocal  = window._fbLastSave || 0;
-          if (tsRemoto > tsLocal) {
-            G = JSON.parse(remoto);
-            // Recriar sessão com dados do Firebase
-            G.sessao = window._fbUser;
+          G = JSON.parse(remoto);
+          G.sessao = window._fbUser;
+          // Iniciar app na primeira carga
+          if (!window._appDadosCarregados) {
+            window._appDadosCarregados = true;
+            if (typeof iniciarApp === 'function') iniciarApp();
+          } else {
+            // Atualizações subsequentes — re-renderizar aba atual
             if (typeof setTab === 'function') setTab(abaAtiva || 'home');
           }
         }
       } else {
-        // Primeiro uso — salvar estado inicial
-        _fbSalvar();
+        // Firestore vazio — iniciar com estado default e salvar
+        if (!window._appDadosCarregados) {
+          window._appDadosCarregados = true;
+          G.sessao = window._fbUser;
+          if (typeof iniciarApp === 'function') iniciarApp();
+          // Salvar estado inicial no Firestore
+          setTimeout(() => _fbSalvar?.(), 500);
+        }
       }
     });
 
@@ -1163,15 +1170,13 @@ body.modo-apresentacao .sorteio-fullscreen-topbar .no-apres { display: none !imp
       });
     };
 
-    // Iniciar o app local
+    // Iniciar o app — aguardar primeiro snapshot do Firestore
     if (!window._appIniciado) {
       window._appIniciado = true;
-      // Compatibilidade: usar G existente ou default
-      if (!window.G) G = estadoDefault();
-      G.sessao = window._fbUser;
+      // Mostrar loading enquanto carrega dados do Firestore
       document.getElementById('screen-login').style.display = 'none';
       document.getElementById('screen-app').style.display   = 'block';
-      if (typeof iniciarApp === 'function') iniciarApp();
+      // iniciarApp será chamado dentro do onSnapshot quando dados chegarem
     }
   };
 </script>
